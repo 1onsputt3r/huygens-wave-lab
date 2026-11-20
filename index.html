@@ -1804,8 +1804,68 @@ html&gt;body{padding:0}&lt;/style&gt;
 
 &lt;button type=&quot;button&quot; class=&quot;btn&quot; data-wave=&quot;periodic&quot; aria-pressed=&quot;false&quot;&gt;週期波&lt;/button&gt;
 &lt;button class=&quot;btn&quot; data-wave=&quot;refraction&quot; aria-pressed=&quot;false&quot;&gt;折射&lt;/button&gt;
-&lt;/div&gt;
-&lt;section id=&quot;panel-formation&quot;&gt;&lt;div class=&quot;viz-controls&quot; id=&quot;formation-types&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn&quot; data-type=&quot;circle&quot; aria-pressed=&quot;true&quot;&gt;圓形波&lt;/button&gt;&lt;button type=&quot;button&quot; class=&quot;btn&quot; data-type=&quot;line&quot; aria-pressed=&quot;false&quot;&gt;直線波&lt;/button&gt;&lt;/div&gt;&lt;section id=&quot;panel-circle&quot;&gt;&lt;div id=&quot;huygens-demo&quot;&gt;
+&lt;button class=&quot;btn&quot; data-wave=&quot;diffraction&quot; aria-pressed=&quot;false&quot;&gt;繞射&lt;/button&gt;&lt;/div&gt;
+&lt;section id=&quot;panel-diffraction&quot; hidden&gt;&lt;h3&gt;直線週期波的繞射&lt;/h3&gt;&lt;div class=&quot;df-layout&quot;&gt;&lt;canvas width=&quot;256&quot; height=&quot;144&quot; aria-label=&quot;由左向右傳播的週期波與繞射場&quot;&gt;&lt;/canvas&gt;&lt;div class=&quot;df-controls&quot;&gt;&lt;div class=&quot;viz-controls&quot;&gt;&lt;button class=&quot;btn&quot; data-object=&quot;slit&quot;&gt;狹縫&lt;/button&gt;&lt;button class=&quot;btn&quot; data-object=&quot;bar&quot;&gt;障礙物&lt;/button&gt;&lt;/div&gt;&lt;label&gt;寬度 a　&lt;output&gt;&lt;/output&gt;&lt;input class=&quot;form-range&quot; type=&quot;range&quot; min=&quot;4&quot; max=&quot;48&quot; value=&quot;24&quot; step=&quot;1&quot;&gt;&lt;/label&gt;&lt;label&gt;波長 λ　&lt;output&gt;&lt;/output&gt;&lt;input class=&quot;form-range&quot; type=&quot;range&quot; min=&quot;4&quot; max=&quot;24&quot; value=&quot;8&quot; step=&quot;1&quot;&gt;&lt;/label&gt;&lt;strong data-ratio&gt;&lt;/strong&gt;&lt;div class=&quot;viz-controls&quot;&gt;&lt;button class=&quot;btn&quot; data-view=&quot;wave&quot;&gt;看波前&lt;/button&gt;&lt;button class=&quot;btn&quot; data-view=&quot;sources&quot;&gt;惠更斯次波&lt;/button&gt;&lt;button class=&quot;btn&quot; data-view=&quot;energy&quot;&gt;能量分布&lt;/button&gt;&lt;/div&gt;&lt;button class=&quot;btn&quot; data-motion&gt;播放&lt;/button&gt;&lt;p data-help&gt;&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;/section&gt;
+&lt;style&gt;.df-controls{display:grid;gap:10px;align-content:center}.df-controls p{margin:0}.df-controls input{display:block;width:100%}.df-controls [data-motion]{justify-self:start}.df-layout canvas{width:100%;display:block;background:#0b2536}.df-layout{display:grid;gap:16px;align-items:center}.df-layout .viz-controls{display:flex;flex-wrap:wrap;gap:5px}@media(orientation:landscape) and (min-width:900px){.df-layout{grid-template-columns:minmax(0,3fr) minmax(300px,2fr)}.df-layout canvas{max-height:72dvh;object-fit:contain}}&lt;/style&gt;
+&lt;script&gt;
+(()=&gt;{
+ const panel=document.querySelector(&#x27;#panel-diffraction&#x27;),canvas=panel.querySelector(&#x27;canvas&#x27;),ctx=canvas.getContext(&#x27;2d&#x27;),inputs=panel.querySelectorAll(&#x27;input&#x27;),outputs=panel.querySelectorAll(&#x27;output&#x27;);
+ const W=canvas.width,H=canvas.height,wall=54,N=512,tau=2*Math.PI,img=ctx.createImageData(W,H),re=new Float32Array(W*H),im=new Float32Array(W*H);
+ let object=&#x27;slit&#x27;,view=&#x27;wave&#x27;,playing=false,time=0,last=0,frame=0;
+ // Angular spectrum of a centred rectangular opening, on a padded transverse grid.
+ function compute(){
+  const a=+inputs[0].value,lambda=+inputs[1].value,k=tau/lambda;
+  const modes=[];
+  for(let m=0;m&lt;=N/2;m++){
+   const ky=tau*m/N,weight=m===0?a/N:2*Math.sin(ky*a/2)/(Math.PI*m);
+   const profile=Float32Array.from({length:H},(_,y)=&gt;weight*Math.cos(ky*(y+.5-H/2)));
+   modes.push({profile,kx:Math.sqrt(Math.max(0,k*k-ky*ky)),decay:Math.sqrt(Math.max(0,ky*ky-k*k))});
+  }
+  re.fill(0);im.fill(0);
+  for(let x=0;x&lt;W;x++){
+   const d=x-wall,baseR=Math.cos(k*d),baseI=Math.sin(k*d);
+   if(d&gt;0)for(const {profile,kx,decay} of modes){
+    const attenuation=Math.exp(-decay*d);if(attenuation&lt;.0001)continue;
+    const cr=attenuation*Math.cos(kx*d),ci=attenuation*Math.sin(kx*d);
+    for(let y=0;y&lt;H;y++){const j=y*W+x;re[j]+=profile[y]*cr;im[j]+=profile[y]*ci;}
+   }
+   for(let y=0;y&lt;H;y++){const j=y*W+x;if(d&lt;=0){re[j]=baseR;im[j]=baseI;}else if(object===&#x27;bar&#x27;){re[j]=baseR-re[j];im[j]=baseI-im[j];}}
+  }
+  outputs[0].value=a+&#x27; cm&#x27;;outputs[1].value=lambda+&#x27; cm&#x27;;panel.querySelector(&#x27;[data-ratio]&#x27;).textContent=&#x27;寬度／波長　a/λ = &#x27;+(a/lambda).toFixed(2);
+ }
+ function open(y){return (Math.abs(y-H/2)&lt;+inputs[0].value/2)===(object===&#x27;slit&#x27;);}
+ function paint(){
+  const lambda=+inputs[1].value,phase=tau*time*12/lambda,c=Math.cos(phase),s=Math.sin(phase);
+  for(let j=0;j&lt;re.length;j++){
+   const intensity=re[j]*re[j]+im[j]*im[j];
+   const v=view===&#x27;energy&#x27;?Math.min(1,Math.sqrt(intensity)/1.5):Math.min(1,Math.max(0,re[j]*c+im[j]*s));
+   const i=4*j;img.data[i]=10+205*v;img.data[i+1]=31+201*v;img.data[i+2]=46+197*v;img.data[i+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+  for(let y=0;y&lt;H;y++)if(!open(y+.5)){ctx.fillStyle=&#x27;#fcab54&#x27;;ctx.fillRect(wall-1,y,3,1);}
+  if(view===&#x27;sources&#x27;){
+   ctx.save();ctx.beginPath();ctx.rect(wall,0,W-wall,H);ctx.clip();
+   for(let y=H/2-60;y&lt;H;y+=4){if(!open(y)||Math.abs(y-H/2)&gt;+inputs[0].value/2+10)continue;
+    ctx.fillStyle=&#x27;#ffb75f&#x27;;ctx.fillRect(wall,y-1,2,2);ctx.strokeStyle=&#x27;rgba(255,189,110,.65)&#x27;;ctx.lineWidth=.6;
+    for(let r=(time*12)%lambda;r&lt;lambda*2.5;r+=lambda){ctx.beginPath();ctx.arc(wall,y,r,-Math.PI/2,Math.PI/2);ctx.stroke();}
+   }ctx.restore();
+  }
+ }
+ function stop(){playing=false;cancelAnimationFrame(frame);panel.querySelector(&#x27;[data-motion]&#x27;).textContent=&#x27;播放&#x27;;}
+ function tick(t){if(panel.hidden){stop();return;}time+=Math.min(.08,(t-last)/1000);last=t;paint();frame=requestAnimationFrame(tick);}
+ function refresh(){
+  for(const b of panel.querySelectorAll(&#x27;[data-object],[data-view]&#x27;))b.setAttribute(&#x27;aria-pressed&#x27;,String(b.dataset.object===object||b.dataset.view===view));
+  panel.querySelector(&#x27;[data-motion]&#x27;).hidden=view===&#x27;energy&#x27;;
+  panel.querySelector(&#x27;[data-help]&#x27;).textContent=view===&#x27;wave&#x27;?&#x27;波從左向右傳播，亮線代表波峰。拖動滑桿，比較寬度等於一個波長及數個波長時的波前。&#x27;:view===&#x27;sources&#x27;?(object===&#x27;slit&#x27;?&#x27;狹縫內各點同相發出次波。橙色半圓標出部分次波，疊加後形成右側的波前。&#x27;:&#x27;障礙物兩旁通過的波都會產生次波。橙色半圓選出靠近兩側邊緣的幾個次波，觀察它們進入後方陰影。&#x27;):(object===&#x27;slit&#x27;?&#x27;亮度表示時間平均的相對波強。寬縫的次波在斜向容易互相抵消，能量集中在正前方。縫寬接近波長時，能量分布的角度變廣。&#x27;:&#x27;亮度表示時間平均的相對波強。觀察障礙物後方：寬度接近波長時，兩側的波更容易繞入陰影，使暗區變得不明顯。&#x27;);
+  paint();
+ }
+ for(const b of panel.querySelectorAll(&#x27;[data-object]&#x27;))b.onclick=()=&gt;{object=b.dataset.object;compute();refresh();};
+ for(const b of panel.querySelectorAll(&#x27;[data-view]&#x27;))b.onclick=()=&gt;{view=b.dataset.view;if(view===&#x27;energy&#x27;)stop();refresh();};
+ for(const input of inputs)input.oninput=()=&gt;{compute();paint();};
+ panel.querySelector(&#x27;[data-motion]&#x27;).onclick=()=&gt;{if(playing){stop();return;}playing=true;last=performance.now();panel.querySelector(&#x27;[data-motion]&#x27;).textContent=&#x27;暫停&#x27;;frame=requestAnimationFrame(tick);};
+ compute();refresh();
+})();
+&lt;/script&gt;&lt;section id=&quot;panel-formation&quot;&gt;&lt;div class=&quot;viz-controls&quot; id=&quot;formation-types&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn&quot; data-type=&quot;circle&quot; aria-pressed=&quot;true&quot;&gt;圓形波&lt;/button&gt;&lt;button type=&quot;button&quot; class=&quot;btn&quot; data-type=&quot;line&quot; aria-pressed=&quot;false&quot;&gt;直線波&lt;/button&gt;&lt;/div&gt;&lt;section id=&quot;panel-circle&quot;&gt;&lt;div id=&quot;huygens-demo&quot;&gt;
   &lt;h3&gt;從點波源到新的波前&lt;/h3&gt;
   &lt;div class=&quot;viz-controls&quot;&gt;
     &lt;button type=&quot;button&quot; class=&quot;btn btn-primary&quot; data-action=&quot;main&quot;&gt;發出圓形波&lt;/button&gt;
